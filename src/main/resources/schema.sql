@@ -5,8 +5,14 @@ CREATE TABLE IF NOT EXISTS Content (
     status VARCHAR(20) NOT NULL,
     content_type VARCHAR(50) NOT NULL,
     date_created TIMESTAMP NOT NULL,
-    date_updated TIMESTAMP,
-    url VARCHAR(255)
+    date_updated TIMESTAMP
+);
+
+
+
+CREATE TABLE IF NOT EXISTS content_sources (
+    content_id INTEGER NOT NULL REFERENCES Content(id),
+    source VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS users (

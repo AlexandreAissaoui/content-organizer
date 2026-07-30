@@ -35,39 +35,49 @@ The API starts at `http://localhost:8080`.
 | title        | String                                        | Required, cannot be blank                       |
 | description  | String                                        | Optional                                        |
 | status       | `IDEA`, `IN_PROGRESS`, `COMPLETED`, `PUBLISHED` | Current stage of the content               |
-| contentType  | `ARTICLE`, `VIDEO`, `COURSE`, `CONFERENCE_TALK` | The format of the content                   |
-| sources      | List\<String\>                                | Multiple reference URLs supporting the content  |
-| dateCreated  | LocalDateTime                                 | Set automatically on creation                   |
+| type         | `ARTICLE`, `VIDEO`, `COURSE`, `CONFERENCE_TALK` | The format of the content                   |
+| sources      | List\<String\>                                | Multiple reference URLs supporting the content (persisted in `content_sources` table) |
+| dateCreated  | LocalDateTime                                 | Set automatically via `@PrePersist`             |
 | dateUpdated  | LocalDateTime                                 | Set automatically on update                     |
 
 ## API Endpoints
 
 | Method   | Endpoint                        | Description                    |
 |----------|---------------------------------|--------------------------------|
-| `GET`    | `/api/content`                  | List all content               |
-| `GET`    | `/api/content/{id}`             | Get content by ID              |
-| `POST`   | `/api/content`                  | Create new content             |
-| `PUT`    | `/api/content/{id}`             | Update existing content        |
-| `DELETE` | `/api/content/{id}`             | Delete content by ID           |
-| `GET`    | `/api/content/filter/{keyword}` | Search content by title        |
-| `GET`    | `/api/content/filter/status/{status}` | Filter content by status |
+| `GET`    | `/api/contents`                 | List all content               |
+| `GET`    | `/api/contents/{id}`            | Get content by ID              |
+| `POST`   | `/api/contents`                 | Create new content             |
+| `PUT`    | `/api/contents/{id}`            | Update existing content        |
+| `DELETE` | `/api/contents/{id}`            | Delete content by ID           |
+| `GET`    | `/api/contents/filter/{keyword}`| Search content by title        |
+| `GET`    | `/api/contents/filter/status/{status}` | Filter content by status |
 
 ### Create Content
 
 ```json
-POST /api/content
+POST /api/contents
 {
   "title": "Spring Security Guide",
   "description": "A comprehensive guide to securing Spring apps",
   "status": "PUBLISHED",
-  "contentType": "ARTICLE",
-  "dateCreated": "2024-01-15T10:30:00",
+  "type": "ARTICLE",
   "url": [
     "https://example.com/part-1",
     "https://example.com/part-2"
   ]
 }
 ```
+
+## Migration v1 → v2
+
+After pulling this version, run the following statements **once** via `psql` :
+
+```sql
+ALTER TABLE Content DROP COLUMN IF EXISTS sources;
+DROP TABLE IF EXISTS content_sources;
+```
+
+The `schema.sql` file will recreate the `content_sources` table on the next application startup.
 
 ## License
 

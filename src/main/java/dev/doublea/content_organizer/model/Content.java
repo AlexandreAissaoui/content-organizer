@@ -2,14 +2,19 @@ package dev.doublea.content_organizer.model;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.PrePersist;
 import jakarta.validation.constraints.NotBlank;
 
 @Entity
@@ -34,7 +39,13 @@ public class Content {
     @Column(updatable = false)
     private LocalDateTime dateCreated;
     private LocalDateTime dateUpdated;
-    private final ArrayList<String> sources = new ArrayList<>();
+    @ElementCollection
+    @CollectionTable(
+        name = "content_sources",
+        joinColumns = @JoinColumn(name = "content_id")
+    )
+    @Column(name = "source", nullable = false)
+    private List<String> sources = new ArrayList<>();
 
     public Content() {}
 
@@ -63,13 +74,17 @@ public class Content {
     public Type getContentType() { return contentType; }
     public LocalDateTime getDateCreated() { return dateCreated; }
     public LocalDateTime getDateUpdated() { return dateUpdated; }
-    public ArrayList<String> getSources() { return new ArrayList<>(sources); }
+    public List<String> getSources() { return new ArrayList<>(sources); }
+
+    @PrePersist
+    public void prePersist() {
+        if (dateCreated == null) dateCreated = LocalDateTime.now();
+}
 
     public void setTitle(String title) { this.title = title; }
     public void setDescription(String description) { this.description = description; }
     public void setStatus(Status status) { this.status = status; }
     public void setContentType(Type contentType) { this.contentType = contentType; }
-    public void setDateCreated(LocalDateTime dateCreated) { this.dateCreated = dateCreated; }
     public void setDateUpdated(LocalDateTime dateUpdated) { this.dateUpdated = dateUpdated; }
     public void addUrl(String url) { sources.add(url); }
 }

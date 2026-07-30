@@ -1,8 +1,10 @@
 package dev.doublea.content_organizer.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,8 +21,10 @@ import dev.doublea.content_organizer.dto.content.ContentUpdateRequest;
 import dev.doublea.content_organizer.service.ContentService;
 import jakarta.validation.Valid;
 
+
+
 @RestController
-@RequestMapping("/api/content")
+@RequestMapping("/api/contents")
 public class ContentController {
 
     private final ContentService contentService;
@@ -36,41 +40,23 @@ public class ContentController {
 
     @GetMapping("/{id}")
     public ContentResponse findById(@PathVariable Integer id) {
-        try {
-            return contentService.findById(id);
-        }
-        catch (Exception e) {
-            System.out.println("Error searching content "+id);
-            return null;
-        }
+        return contentService.findById(id);
     }
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping
-    public void create(@Valid @RequestBody ContentRequest request) {
-        contentService.create(request);
+    public ResponseEntity<Map<String, String>> create(@Valid @RequestBody ContentRequest request) {
+        return contentService.create(request);
     }
 
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PutMapping("/{id}")
-    public void update(@Valid @RequestBody ContentUpdateRequest request, @PathVariable Integer id) {
-        try {
-            contentService.update(id, request);
-        }
-        catch (Exception e) {
-            System.out.println("Error updating content");
-        }
+    public ResponseEntity<Map<String, String>> update(@Valid @RequestBody ContentUpdateRequest request, @PathVariable Integer id) {
+        return contentService.update(id, request);
     }
 
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
-        try {
-            contentService.delete(id);
-        }
-        catch (Exception e) {
-            System.out.println("Error searching content "+id);
-        }
+    public ResponseEntity<Map<String, String>> delete(@PathVariable Integer id) {
+        return contentService.delete(id);
     }
 
     @GetMapping("/filter/{keyword}")
