@@ -1,0 +1,9 @@
+target/
+.mvn/wrapper/*.jar
+.idea/
+.vscode/
+*.iml
+*.log
+.DS_Store
+HELP.md
+application-production.properties

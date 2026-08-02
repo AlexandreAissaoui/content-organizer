@@ -10,11 +10,11 @@ set -e
 echo "=== Register users ==="
 curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"member1","password":"pass123","role":"MEMBER"}' | jq .
+  -d '{"username":"member1","password":"pass123"}' | jq .
 
 curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin1","password":"pass123","role":"ADMIN"}' | jq .
+  -d '{"username":"admin1","password":"pass123"}' | jq .
 
 echo "=== Login & save tokens ==="
 MEMBER_TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
@@ -35,7 +35,7 @@ echo "=== POST /api/contents (ADMIN) ==="
 curl -s -X POST http://localhost:8080/api/contents \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"title":"Test Article","description":"A test","type":"ARTICLE","status":"IDEA","url":["https://example.com"]}' | jq .
+  -d '{"title":"Test Article","description":"A test","type":"ARTICLE","status":"IDEA","sources":["https://example.com"]}' | jq .
 
 echo "=== PUT /api/contents/1 (ADMIN) ==="
 curl -s -X PUT http://localhost:8080/api/contents/1 \
