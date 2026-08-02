@@ -16,5 +16,6 @@ public record ContentResponse(
     @NotNull Type type,
     @NotNull LocalDateTime dateCreated,
     LocalDateTime dateUpdated,
-    List<String> url
+    List<String> sources,
+    @NotNull List<String> authors
 ) {}

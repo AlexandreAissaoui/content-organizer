@@ -16,6 +16,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.PrePersist;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 
 @Entity
 public class Content {
@@ -24,6 +25,13 @@ public class Content {
     private Integer id;
     @NotBlank(message = "Empty title is prohibited")
     private String title;
+    @ElementCollection
+    @CollectionTable(
+        name = "content_authors",
+        joinColumns = @JoinColumn(name = "content_id")
+    )
+    @Column(name = "author", nullable = false)
+    @NotEmpty private final List<String> authors = new ArrayList<>();
     private String description;
 
     // Stores the enum as its name string in the DB
@@ -32,7 +40,7 @@ public class Content {
     private Status status;
 
     @Enumerated(EnumType.STRING)
-    private Type contentType;
+    private Type type;
 
     // Prevents Hibernate from updating this column after the entity is persisted.
     // The creation timestamp is set once and should never change.
@@ -45,36 +53,19 @@ public class Content {
         joinColumns = @JoinColumn(name = "content_id")
     )
     @Column(name = "source", nullable = false)
-    private List<String> sources = new ArrayList<>();
+    private final List<String> sources = new ArrayList<>();
 
     public Content() {}
-
-    public Content(Integer id) { this.id = id; }
-
-    public Content(Integer id,
-    String title,
-    String description,
-    Status status,
-    Type contentType,
-    String url) {
-        this.id=id;
-        this.title=title;
-        this.description=description;
-        this.status=status;
-        this.contentType=contentType;
-        this.dateCreated = dateCreated != null ? dateCreated : LocalDateTime.now();
-        if (url != null) 
-            sources.add(url);
-    }
 
     public Integer getId() { return id; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
     public Status getStatus() { return status; }
-    public Type getContentType() { return contentType; }
+    public Type getType() { return type; }
     public LocalDateTime getDateCreated() { return dateCreated; }
     public LocalDateTime getDateUpdated() { return dateUpdated; }
     public List<String> getSources() { return new ArrayList<>(sources); }
+    public List<String> getAuthors() { return new ArrayList<>(authors); }
 
     @PrePersist
     public void prePersist() {
@@ -84,7 +75,8 @@ public class Content {
     public void setTitle(String title) { this.title = title; }
     public void setDescription(String description) { this.description = description; }
     public void setStatus(Status status) { this.status = status; }
-    public void setContentType(Type contentType) { this.contentType = contentType; }
+    public void setType(Type type) { this.type = type; }
     public void setDateUpdated(LocalDateTime dateUpdated) { this.dateUpdated = dateUpdated; }
-    public void addUrl(String url) { sources.add(url); }
+    public void addSource(String url) { if ( ! sources.contains(url)) { sources.add(url); } }
+    public void addAuthor(String user) { if ( ! authors.contains(user)) { authors.add(user); } }
 }

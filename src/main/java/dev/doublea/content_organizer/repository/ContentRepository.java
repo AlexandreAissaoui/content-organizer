@@ -12,5 +12,7 @@ public interface ContentRepository extends JpaRepository<Content,Integer> {
     // Implicit JPQL query : case-insensitive substring search.
     List<Content> findAllByTitleContainsIgnoreCase(String keyword);
     List<Content> findAllByStatus(Status status);
-    List<Content> findAllBySourcesContaining(String source);
+    List<Content> findAllBySourcesIn(List<String> sources);
+
+
 }

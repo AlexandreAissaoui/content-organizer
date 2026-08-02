@@ -4,7 +4,7 @@
     "title": "Why you should never use the TABLE identifier generator with JPA and Hibernate",
     "description": "In this article you will get familiar with the four types of generated identifiers and their performance.",
     "status": "PUBLISHED",
-    "contentType": "ARTICLE",
+    "type": "ARTICLE",
     "dateCreated": "2019-01-22T00:00:00.000000",
     "dateUpdated": null,
     "url": "https://www.danvega.dev/blog/2023/01/27/jakarta-ee-10-uuid/"

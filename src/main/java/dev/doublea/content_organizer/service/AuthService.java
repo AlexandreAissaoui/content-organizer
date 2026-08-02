@@ -1,15 +1,20 @@
 package dev.doublea.content_organizer.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import dev.doublea.content_organizer.dto.auth.LoginRequest;
 import dev.doublea.content_organizer.dto.auth.LoginResponse;
@@ -33,10 +38,6 @@ public class AuthService {
         this.jwtUtils = jwtUtils;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-
-        User testUser = new User("test", passwordEncoder.encode("rawpassword"));
-        testUser.setRole(Role.ADMIN);
-        userRepository.save(testUser);
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -45,8 +46,9 @@ public class AuthService {
             authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password())
             );
-        } catch (Exception e) {
-            throw new IllegalArgumentException(e.getMessage());
+        }
+        catch (AuthenticationException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
@@ -57,7 +59,7 @@ public class AuthService {
 
     public void register(RegisterRequest request) {
         if (userRepository.findByUsername(request.username()).isPresent()) {
-            throw new IllegalArgumentException("Username already taken");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken");
         }
 
         User user = new User(
@@ -86,17 +88,33 @@ public class AuthService {
         userRepository.deleteByUsername(username);
     }
 
-    public void modifyRights(User caller, User member, Role newRole) {
-        if ( ! caller.getRole().equals(Role.ADMIN) ) {
-            throw new org.springframework.security.access.AccessDeniedException(caller.getUsername() + "does not have enough rights");
+    public ResponseEntity<Map<String, String>> modifyRights(Authentication authentication, String memberName, Map<String, String> request) {
+        String error = "error";
+        if (request.get("role") == null) {
+            return ResponseEntity.status(400).body(Map.of(error, "Role is required"));
         }
-        else if ( ! member.getRole().equals(Role.MEMBER)) {
-            throw new IllegalArgumentException("Only member can have their rights modified");
-        } else if (member.getRole().equals(newRole)) {
-            throw new IllegalArgumentException(member.getUsername() + " already has these rights");
+        String roleString = request.get("role").toUpperCase();
+        if ((! roleString.equals("ADMIN")) && (! roleString.equals("WRITER")) && (! roleString.equals("MEMBER")) ) {
+            return ResponseEntity.status(400).body(Map.of(error, "Unknown role : " +roleString));
+        }
+        Role newRole = Role.valueOf(roleString);
+        Optional<User> memberOptional = userRepository.findByUsername(memberName);
+        Optional<User> callerOptional = userRepository.findByUsername(authentication.getName());
+        User member = memberOptional.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Unknown user"));
+        User caller = callerOptional.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Unknown user"));
+        if ( ! caller.getRole().equals(Role.ADMIN) ) {
+            return ResponseEntity.status(403).body(Map.of(error, "Only administrators can modify rights"));
+        }
+        else if ( member.getRole().equals(Role.ADMIN)) {
+            return ResponseEntity.status(403).body(Map.of(error, "Administrators cannot have their rights modified"));
+        } 
+        else if (member.getRole().equals(newRole)) {
+            return ResponseEntity.status(400).body(Map.of(error, "Member already has the role: " +newRole));
+        
         } else {
             member.setRole(newRole);      
         }
+        return ResponseEntity.ok(Map.of("success", "Member has new role : " +newRole));
     }
     
 }

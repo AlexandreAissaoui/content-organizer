@@ -1,12 +1,15 @@
 package dev.doublea.content_organizer.dto.content;
 
-import java.util.ArrayList;
+import java.util.List;
 
 import dev.doublea.content_organizer.model.Status;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public record ContentUpdateRequest(
-    String title,
+    @NotBlank String title,
     String description,
-    Status status,
-    ArrayList<String> url
+    @NotNull Status status,
+    List<String> sources,
+    List<String> authors
 ) {}

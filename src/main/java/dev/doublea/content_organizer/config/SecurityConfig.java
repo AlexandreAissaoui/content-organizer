@@ -2,6 +2,7 @@ package dev.doublea.content_organizer.config;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import dev.doublea.content_organizer.security.JwtAuthenticationFilter;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
@@ -31,10 +33,13 @@ public class SecurityConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityConfig.class);
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper;
+    private final String contentUrl = "/api/contents/";
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService, ObjectMapper objectMapper) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -44,7 +49,10 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
                 response.setStatus(401);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                String json = " {\"timestamp\": \" " + LocalDateTime.now() + "\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication required\" }";
+                String json = objectMapper.writeValueAsString(Map.of("timestamp", LocalDateTime.now(), 
+                "status", 401,
+                "error", "Unauthorized",
+                "message", "Authentication required"));
                 try {
                     response.getWriter().write(json);
                 } catch (IOException ioexcep) {
@@ -53,11 +61,12 @@ public class SecurityConfig {
             }))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/", "/api/auth/login", "/error").permitAll()
-                .requestMatchers("/", "/api/auth/register").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/contents/**").hasAnyRole("MEMBER", "ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/contents").hasRole("ADMIN")
-                .requestMatchers("/api/contents/**").hasRole("ADMIN")
+                .requestMatchers("/", "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers("/", "/api/auth/users/**").hasAnyRole("MEMBER", "WRITER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, contentUrl+"**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, contentUrl).hasAnyRole("WRITER","ADMIN")
+                .requestMatchers(HttpMethod.PUT, contentUrl+"**").hasAnyRole("WRITER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, contentUrl+"**").hasAnyRole("MEMBER", "WRITER", "ADMIN")
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())
@@ -81,9 +90,5 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    public static Logger getLogger() {
-        return LOGGER;
     }
 }
