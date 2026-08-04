@@ -39,6 +39,43 @@ The API signs JWTs with a key read from the `JWT_SECRET_KEY` environment variabl
 
 The API starts at `http://localhost:8080`.
 
+### Run with Docker
+
+The project ships with a `Dockerfile` (multi-stage build: Maven compiles, a slim JRE image runs) and a `docker-compose.yml` that runs the API together with its PostgreSQL database.
+
+#### Prerequisites
+
+- A running Docker engine — e.g. [colima](https://github.com/abiosoft/colima) (`colima start`) or Docker Desktop
+- The Docker Compose plugin (`docker compose`)
+
+#### Option A — provide the JWT secret via a `.env` file (recommended)
+
+The `app` service reads `JWT_SECRET_KEY` from a `.env` file at the project root. This file is gitignored: create it once, never commit it.
+
+```bash
+printf 'JWT_SECRET_KEY=%s\n' "$(openssl rand -base64 32 | tr -d '\n')" > .env
+```
+
+If no `.env` is present, the application fails to start with a "could not resolve placeholder" error — the secret is intentionally required (fail fast), since an unguessable signing key is what protects the JWTs.
+
+#### Option B — remove the `POSTGRES_HOST_AUTH_METHOD: trust` line
+
+`docker-compose.yml` uses `POSTGRES_HOST_AUTH_METHOD: trust` so PostgreSQL accepts the empty password from `application.properties`. This is fine for local development, but it is **not** a production setup.
+
+To use a real database password instead, the following conditions must be met:
+
+1. In `docker-compose.yml`, set a non-empty `POSTGRES_PASSWORD` and delete the `POSTGRES_HOST_AUTH_METHOD: trust` line
+2. Set the matching `SPRING_DATASOURCE_PASSWORD` on the `app` service
+3. In `.github/workflows/ci.yml`, the `POSTGRES_HOST_AUTH_METHOD: trust` line exists so the CI tests can connect without a password — adjust it to match your CI database settings
+
+#### Start
+
+```bash
+docker compose up --build
+```
+
+The API is available at `http://localhost:8080`; PostgreSQL listens on port `5432`. Stop everything with `docker compose down`.
+
 ## Content Model
 
 | Field        | Type                                          | Description                                     |

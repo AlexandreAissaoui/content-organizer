@@ -7,3 +7,4 @@ target/
 .DS_Store
 HELP.md
 application-production.properties
+.env

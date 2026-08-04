@@ -56,9 +56,6 @@ public class ContentService {
 
     @PreAuthorize("hasAnyRole('WRITER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> create(ContentRequest request, Authentication authentication) {
-        if (authentication == null ) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, USER_NOT_FOUND);
-        }
         if (request == null) {
             return ResponseEntity.status(400).body(Map.of(ERROR, "Invalid request"));
         }
@@ -66,10 +63,6 @@ public class ContentService {
         Optional<User> userOpt = userRepository.findByUsername(username);
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of(ERROR, USER_NOT_FOUND));    
-        }
-        // Only an admin or a writer can create content
-        if ((! userOpt.get().getRole().equals(Role.ADMIN)) && (! userOpt.get().getRole().equals(Role.WRITER)) ) {
-            return ResponseEntity.status(403).body(Map.of(ERROR, "Not enough rights to create content"));
         }
 
         Content content = new Content(request.title());
@@ -101,9 +94,6 @@ public class ContentService {
     public ResponseEntity<Map<String, String>> update(Integer id, ContentUpdateRequest request, Authentication authentication) {
         if (request == null) {
             return ResponseEntity.status(400).body(Map.of(ERROR, "Invalid request"));
-        } 
-        if (authentication == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, USER_NOT_FOUND);
         }
         Optional<Content> checkContent = repository.findById(id);
         Content content = checkContent.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, CONTENT_NOT_FOUND));
@@ -143,9 +133,6 @@ public class ContentService {
 
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> delete(Integer id, Authentication authentication) {
-        if (authentication == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, USER_NOT_FOUND);
-        }
         if (!repository.existsById(id))  {
             return ResponseEntity.status(404).body(Map.of(ERROR,CONTENT_NOT_FOUND));
         }
@@ -153,12 +140,8 @@ public class ContentService {
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of(ERROR,USER_NOT_FOUND));    
         }
-        if (userOpt.get().getRole().equals(Role.ADMIN)) {
-            repository.deleteById(id);
-            return ResponseEntity.status(204).build();
-        }
-        return ResponseEntity.status(403).body(Map.of(ERROR,"Not enough rights to delete content"));
-        
+        repository.deleteById(id);
+        return ResponseEntity.status(204).build();
     }
 
     public List<ContentResponse> findByTitle(String keyword) {
