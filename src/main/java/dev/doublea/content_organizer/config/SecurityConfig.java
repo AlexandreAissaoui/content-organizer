@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -28,6 +29,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity 
 public class SecurityConfig {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityConfig.class);
@@ -61,7 +63,7 @@ public class SecurityConfig {
             }))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/", "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers("/", "/api/auth/login", "/api/auth/register", "/error").permitAll()
                 .requestMatchers("/", "/api/auth/users/**").hasAnyRole("MEMBER", "WRITER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, contentUrl+"**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, contentUrl).hasAnyRole("WRITER","ADMIN")

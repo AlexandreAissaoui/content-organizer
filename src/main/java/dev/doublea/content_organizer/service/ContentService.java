@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -42,29 +43,18 @@ public class ContentService {
         this.repository = repository;
         this.userRepository = userRepository;
     }
-
-    // Check rights of the user to update or delete content
-    private boolean existsWriter(String username) {
-        Optional<User> userOptional = userRepository.findByUsername(username);
-        if (userOptional.isPresent()) {
-            return userOptional.get().getRole().equals(Role.WRITER) || userOptional.get().getRole().equals(Role.ADMIN);
-        }
-        return false;
-    }
-
+    
     public List<ContentResponse> findAll() {
         return repository.findAll().stream().map(this::toResponse).toList();
     }
 
     public ContentResponse findById(Integer id) {
-        Content content = repository.findById(id).orElse(null);
-        if (content == null) {
-            logger.error("\nContent not found with id: {}", id);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found with id: " + id);
-        }
+        Content content = repository.findById(id).orElseThrow( () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found with id: " + id));
         return toResponse(content);
     }
 
+
+    @PreAuthorize("hasAnyRole('WRITER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> create(ContentRequest request, Authentication authentication) {
         if (authentication == null ) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, USER_NOT_FOUND);
@@ -82,9 +72,8 @@ public class ContentService {
             return ResponseEntity.status(403).body(Map.of(ERROR, "Not enough rights to create content"));
         }
 
-        Content content = new Content();
-        content.addAuthor(username);
-        content.setTitle(request.title());
+        Content content = new Content(request.title());
+        content.addAuthor(username);        
         content.setDescription(request.description());
         content.setStatus(request.status());
         content.setType(request.type());
@@ -95,10 +84,20 @@ public class ContentService {
             uniqueSources.stream().filter(url -> ! url.isBlank() ).forEach(content::addSource);
         }
 
+        if (request.authors() != null && ! request.authors().isEmpty()) {
+            // Creating a Set from the authors list automatically erases duplicates
+            Set<String> uniqueAuthors = new HashSet<>(request.authors());
+            uniqueAuthors.stream().filter(this::existsWriter).forEach(content::addAuthor);
+        }
+        if (! content.getAuthors().contains(authentication.getName())) {
+            content.addAuthor(authentication.getName());
+        } 
         repository.save(content);
         return ResponseEntity.created(URI.create("http://localhost:8080/api/contents/"+content.getId())).body(Map.of("success", "Content created with id: " +content.getId()));
     }
 
+
+    @PreAuthorize("hasAnyRole('WRITER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> update(Integer id, ContentUpdateRequest request, Authentication authentication) {
         if (request == null) {
             return ResponseEntity.status(400).body(Map.of(ERROR, "Invalid request"));
@@ -114,33 +113,35 @@ public class ContentService {
             return ResponseEntity.status(404).body(Map.of(ERROR,USER_NOT_FOUND));    
         }
         // Only an admin or a writer of the shared content can update it
-        if (userOpt.get().getRole().equals(Role.ADMIN) || content.getAuthors().contains(authentication.getName())) {
-            if (request.title() != null && !request.title().trim().isBlank()) {
-            content.setTitle(request.title());
-            }
-            if (request.description() != null) {
-                content.setDescription(request.description());
-            }
-            if ((! request.status().equals(content.getStatus()))) {
-                content.setStatus(request.status());
-            }
-            if ( request.sources() != null ) {
-                Set<String> uniqueSources = new HashSet<>(request.sources());
-
-                uniqueSources.stream().filter(url -> ! url.isBlank()).forEach(content::addSource);
-            }
-            if (request.authors() != null && ! request.authors().isEmpty()) {
-                Set<String> uniqueAuthors = new HashSet<>(request.authors());
-                uniqueAuthors.stream().filter(this::existsWriter).forEach(content::addAuthor);
-            }
-            content.setDateUpdated(LocalDateTime.now());
-
-            repository.save(content);
-            return ResponseEntity.ok().build();
+        if ((! userOpt.get().getRole().equals(Role.ADMIN) ) && (! content.getAuthors().contains(authentication.getName())) ) {
+            return ResponseEntity.status(403).body(Map.of(ERROR, "Not enough rights to update content"));
         }
-        return ResponseEntity.status(403).body(Map.of(ERROR, "Not enough rights to update content"));
-    }
+        if (request.title() != null && !request.title().trim().isBlank()) {
+            content.setTitle(request.title());
+        }
+        if (request.description() != null && ! request.description().trim().isBlank()) {
+            content.setDescription(request.description());
+        }
+        if ((! request.status().equals(content.getStatus()))) {
+            content.setStatus(request.status());
+        }
+        if ( request.sources() != null ) {
+            Set<String> uniqueSources = new HashSet<>(request.sources());
+            uniqueSources.stream().filter(url -> ! url.isBlank()).forEach(content::addSource);
+        }
+        if (request.authors() != null && ! request.authors().isEmpty()) {
+            Set<String> uniqueAuthors = new HashSet<>(request.authors());
+            uniqueAuthors.stream().filter(this::existsWriter).forEach(content::addAuthor);
+        }
+        content.setDateUpdated(LocalDateTime.now());
 
+        repository.save(content);
+        return ResponseEntity.ok().body(Map.of("success", "Content updated with id: " +content.getId()));
+    }
+        
+
+
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> delete(Integer id, Authentication authentication) {
         if (authentication == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, USER_NOT_FOUND);
@@ -202,5 +203,14 @@ public class ContentService {
             return Collections.emptyList();
         }
         return repository.findAllBySourcesIn(sources).stream().map(this::toResponse).toList();
+    }
+
+    // Check rights of the user to update or delete content
+    private boolean existsWriter(String username) {
+        Optional<User> userOptional = userRepository.findByUsername(username);
+        if (userOptional.isPresent()) {
+            return userOptional.get().getRole().equals(Role.WRITER) || userOptional.get().getRole().equals(Role.ADMIN);
+        }
+        return false;
     }
 }

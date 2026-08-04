@@ -23,17 +23,11 @@ public class Content {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
+    
     @NotBlank(message = "Empty title is prohibited")
     private String title;
-    @ElementCollection
-    @CollectionTable(
-        name = "content_authors",
-        joinColumns = @JoinColumn(name = "content_id")
-    )
-    @Column(name = "author", nullable = false)
-    @NotEmpty private final List<String> authors = new ArrayList<>();
-    private String description;
 
+    private String description;
     // Stores the enum as its name string in the DB
     // This avoids data corruption if enum values are reordered or removed.
     @Enumerated(EnumType.STRING)
@@ -46,7 +40,9 @@ public class Content {
     // The creation timestamp is set once and should never change.
     @Column(updatable = false)
     private LocalDateTime dateCreated;
+    
     private LocalDateTime dateUpdated;
+    
     @ElementCollection
     @CollectionTable(
         name = "content_sources",
@@ -55,7 +51,19 @@ public class Content {
     @Column(name = "source", nullable = false)
     private final List<String> sources = new ArrayList<>();
 
-    public Content() {}
+    @ElementCollection
+    @CollectionTable(
+        name = "content_authors",
+        joinColumns = @JoinColumn(name = "content_id")
+    )
+    @Column(name = "author", nullable = false)
+    @NotEmpty private final List<String> authors = new ArrayList<>();
+    
+    
+    // For JPA, a no-argument constructor is needed
+    protected Content() {}
+
+    public Content(String title) { this.title = title; }
 
     public Integer getId() { return id; }
     public String getTitle() { return title; }

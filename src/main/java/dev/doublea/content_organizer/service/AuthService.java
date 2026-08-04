@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -83,11 +84,18 @@ public class AuthService {
         return Optional.empty();
     }
 
+    
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public void deleteUser(String username) {
+    public ResponseEntity<Map<String, String>> deleteUser(String username) {
+        if ( userRepository.findByUsername(username).isEmpty() ) {
+            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+        }
         userRepository.deleteByUsername(username);
+        return ResponseEntity.ok(Map.of("success", "User deleted successfully"));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> modifyRights(Authentication authentication, String memberName, Map<String, String> request) {
         String error = "error";
         if (request.get("role") == null) {
