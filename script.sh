@@ -3,6 +3,10 @@
 # Test script for Content Organizer API
 # Password is stored as {noop}rawpassword (plaintext, dev only)
 
+psql -h localhost -U admin -d postgres -c 
+"TRUNCATE TABLE content_sources, content_authors, Content, users; 
+ALTER SEQUENCE Content_id_seq RESTART WITH 1;"
+
 set -e
 
 # ── Auth ────────────────────────────────────────────────────

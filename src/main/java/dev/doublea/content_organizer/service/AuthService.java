@@ -70,30 +70,34 @@ public class AuthService {
         userRepository.save(user);
     }
 
+
+    @PreAuthorize("hasAnyRole('MEMBER', 'WRITER', 'ADMIN')")
     public List<String> getUsers() {
         return userRepository.findAll().stream().map(User::getUsername).toList();
     }
 
+
+    @PreAuthorize("hasAnyRole('MEMBER', 'WRITER', 'ADMIN')")
     public Optional<User> getByUsername(String username) {
         return userRepository.findByUsername(username);
     }
 
+
+    @PreAuthorize("hasAnyRole('MEMBER', 'WRITER', 'ADMIN')")
     public Optional<User> getByUsername(Optional<String> username) {
         if (username.isPresent())
             return userRepository.findByUsername(username.get());
         return Optional.empty();
     }
 
-    
+
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public ResponseEntity<Map<String, String>> deleteUser(String username) {
-        if ( userRepository.findByUsername(username).isEmpty() ) {
-            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
-        }
         userRepository.deleteByUsername(username);
         return ResponseEntity.ok(Map.of("success", "User deleted successfully"));
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> modifyRights(Authentication authentication, String memberName, Map<String, String> request) {
@@ -102,18 +106,16 @@ public class AuthService {
             return ResponseEntity.status(400).body(Map.of(error, "Role is required"));
         }
         String roleString = request.get("role").toUpperCase();
+        // Validation of role name
         if ((! roleString.equals("ADMIN")) && (! roleString.equals("WRITER")) && (! roleString.equals("MEMBER")) ) {
             return ResponseEntity.status(400).body(Map.of(error, "Unknown role : " +roleString));
         }
         Role newRole = Role.valueOf(roleString);
+
+        // Check if member exists and has adequate rights
         Optional<User> memberOptional = userRepository.findByUsername(memberName);
-        Optional<User> callerOptional = userRepository.findByUsername(authentication.getName());
         User member = memberOptional.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Unknown user"));
-        User caller = callerOptional.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Unknown user"));
-        if ( ! caller.getRole().equals(Role.ADMIN) ) {
-            return ResponseEntity.status(403).body(Map.of(error, "Only administrators can modify rights"));
-        }
-        else if ( member.getRole().equals(Role.ADMIN)) {
+        if ( member.getRole().equals(Role.ADMIN)) {
             return ResponseEntity.status(403).body(Map.of(error, "Administrators cannot have their rights modified"));
         } 
         else if (member.getRole().equals(newRole)) {
@@ -124,5 +126,4 @@ public class AuthService {
         }
         return ResponseEntity.ok(Map.of("success", "Member has new role : " +newRole));
     }
-    
 }

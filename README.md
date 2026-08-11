@@ -90,6 +90,64 @@ The API is available at `http://localhost:8080`; PostgreSQL listens on port `543
 | dateCreated  | LocalDateTime                                 | Set automatically via `@PrePersist`             |
 | dateUpdated  | LocalDateTime                                 | Set automatically on update                     |
 
+## Audit & history (Hibernate Envers 7.4)
+
+`Content` and `User` are audited with Hibernate Envers, so every change keeps a
+full version history in dedicated mirror tables.
+
+### What is audited
+
+| Entity                    | Mirror table            | Notes                                                                 |
+|---------------------------|-------------------------|-----------------------------------------------------------------------|
+| `Content`                 | `content_aud`           | one row per revision; `*_MOD` flags per property (`withModifiedFlag=true`) |
+| `Content.sources`         | `content_sources_aud`   | element-level audit of the `@ElementCollection`                        |
+| `Content.authors`         | `content_authors_aud`   | element-level audit of the `@ElementCollection`                        |
+| `User`                    | `users_aud`             | role changes tracked, password excluded (`@NotAudited`)                |
+| —                         | `audit_revision_entity` | one global revision per audited transaction                            |
+
+Every audit row carries:
+
+- `REV` — the global revision id, shared by all `*_aud` rows of the transaction;
+- `REVTYPE` — `ADD`, `MOD` or `DEL`;
+- `<property>_MOD` booleans (when `withModifiedFlag=true`) — which fields
+  actually changed in that revision.
+
+### How the author is recorded
+
+`audit/AuditRevisionEntity` is the global revision; `audit/AuditRevisionListener`
+populates its `username` from the Spring Security `SecurityContextHolder`
+(a `ThreadLocal`). When no authenticated principal is present (scheduled jobs,
+non-HTTP threads, or the `permitAll` `/api/auth/register` endpoint) the revision
+falls back to `"system"` instead of failing the write.
+
+### Security notes
+
+- The user `password` is `@NotAudited`: the hash never enters the version
+  history.
+- Revision timestamps (`REVTSTMP`) are set at **commit** time, not when the
+  business transaction started.
+
+### Audit tests
+
+`ContentAuditTrailTest` (JUnit 5) verifies the trail: one `ADD` on create, `MOD`
+on update, `DEL` on delete, and correct user attribution.
+
+Key mechanics, documented in the test class:
+
+- Envers writes audit rows at **commit**; the tests therefore use a
+  `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW` to create deliberate
+  commit points inside the otherwise rolled-back `@Transactional` test.
+- The revision sequence (`audit_revision_entity_seq`) is reset before each test
+  so revision numbers are deterministic (`1`, `2`, ...).
+- Envers 7.x removed `AuditReader.getRevisionType(...)`; tests query `REVTYPE`
+  through the query API (`AuditEntity.revisionType()` projection).
+
+Run only the audit tests:
+
+```bash
+./mvnw test -Dtest=ContentAuditTrailTest
+```
+
 ## API Endpoints
 
 | Method   | Endpoint                        | Description                    |
@@ -140,7 +198,8 @@ an operator. Do not create accounts from application code.
 
 ## Testing
 
-`ContentControllerTest` is a JUnit 5 + MockMvc test class covering the content API authorization matrix.
+The test suite is split into two Spring Boot integration classes:
+`ContentControllerTest` (JUnit 5 + MockMvc) covering the content API authorization matrix, and `ContentAuditTrailTest` covering the Hibernate Envers audit trail (see [Audit & history](#audit--history-hibernate-envers-74)).
 
 | Test | Role | HTTP semantics asserted |
 |------|------|------------------------|
