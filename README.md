@@ -150,15 +150,27 @@ Run only the audit tests:
 
 ## API Endpoints
 
-| Method   | Endpoint                        | Description                    |
-|----------|---------------------------------|--------------------------------|
-| `GET`    | `/api/contents`                 | List all content               |
-| `GET`    | `/api/contents/{id}`            | Get content by ID              |
-| `POST`   | `/api/contents`                 | Create new content             |
-| `PUT`    | `/api/contents/{id}`            | Update existing content        |
-| `DELETE` | `/api/contents/{id}`            | Delete content by ID           |
-| `GET`    | `/api/contents/filter/{keyword}`| Search content by title        |
-| `GET`    | `/api/contents/filter/status/{status}` | Filter content by status |
+### Authentication & user management
+
+| Method   | Endpoint                    | Auth      | Description                                  |
+|----------|-----------------------------|-----------|----------------------------------------------|
+| `POST`   | `/api/auth/register`        | none      | Create a new account (default role `MEMBER`) |
+| `POST`   | `/api/auth/login`           | none      | Authenticate and receive a JWT               |
+| `GET`    | `/api/auth/users`           | any role  | List all registered usernames                |
+| `PUT`    | `/api/auth/users/{username}`| `ADMIN`   | Change a user's role                         |
+| `DELETE` | `/api/auth/users/{username}`| `ADMIN`   | Delete a user (cannot delete another `ADMIN`) |
+
+### Content CRUD
+
+| Method   | Endpoint                        | Auth                  | Description                    |
+|----------|---------------------------------|-----------------------|--------------------------------|
+| `GET`    | `/api/contents`                 | MEMBER / WRITER / ADMIN | List all content             |
+| `GET`    | `/api/contents/{id}`            | MEMBER / WRITER / ADMIN | Get content by ID            |
+| `POST`   | `/api/contents`                 | WRITER / ADMIN        | Create new content             |
+| `PUT`    | `/api/contents/{id}`            | WRITER / ADMIN        | Update existing content        |
+| `DELETE` | `/api/contents/{id}`            | ADMIN                 | Delete content by ID           |
+| `GET`    | `/api/contents/filter/{keyword}`| MEMBER / WRITER / ADMIN | Search content by title      |
+| `GET`    | `/api/contents/filter/status/{status}` | MEMBER / WRITER / ADMIN | Filter content by status |
 
 ### Create Content
 
@@ -177,6 +189,18 @@ POST /api/contents
 ```
 
 ## Security & Admin bootstrap
+
+### Roles and permissions
+
+| Role      | `GET /users` | `PUT/DELETE /users/{u}` | Content `GET` | Content `POST/PUT` | Content `DELETE` |
+|-----------|:------------:|:-----------------------:|:-------------:|:------------------:|:----------------:|
+| `MEMBER`  | ✓            | —                       | ✓             | —                  | —                |
+| `WRITER`  | ✓            | —                       | ✓             | ✓                  | —                |
+| `ADMIN`   | ✓            | ✓                       | ✓             | ✓                  | ✓                |
+
+Permissions are enforced at **two levels**:
+1. **URL rules** in `SecurityConfig` — the servlet filter rejects unauthorised requests before they reach the controller.
+2. **Method-level `@PreAuthorize`** on `AuthService` — a second safety net for service calls that bypass the HTTP layer.
 
 The application creates no default account at startup.
 
@@ -198,8 +222,32 @@ an operator. Do not create accounts from application code.
 
 ## Testing
 
-The test suite is split into two Spring Boot integration classes:
-`ContentControllerTest` (JUnit 5 + MockMvc) covering the content API authorization matrix, and `ContentAuditTrailTest` covering the Hibernate Envers audit trail (see [Audit & history](#audit--history-hibernate-envers-74)).
+The test suite is split into three Spring Boot integration classes:
+
+| Class | Scope | Key technique |
+|-------|-------|---------------|
+| `ContentControllerTest` | Content API authorization matrix | `@WithMockUser`, AAA pattern, `@Transactional` rollback |
+| `ContentAuditTrailTest` | Hibernate Envers audit trail | `REQUIRES_NEW` commit points, deterministic revision ids |
+| `AuthControllerTest` | Auth/user-management API authorization matrix | `@ParameterizedTest`, `@WithMockUser`, repository assertions |
+
+### AuthControllerTest — authorization matrix
+
+| Test | Role | Target | Expected |
+|------|------|--------|----------|
+| `guestsCannotGetUsers` | anonymous | `GET /users` | 401 |
+| `membersCanGetUsers` | MEMBER | `GET /users` | 200 |
+| `writerCannotDeleteUser` | WRITER | `DELETE /users/{member,admin,writer}` | 403 |
+| `memberCannotDeleteUser` | MEMBER | `DELETE /users/{writer,admin,member}` | 403 |
+| `unknownUserDeletionProducesNotFound` | ADMIN | `DELETE /users/unknown` | 404 |
+| `adminCanDeleteUser` | ADMIN | `DELETE /users/{member,writer}` | 200 + row removed |
+| `adminCannotDeleteAdmin` | ADMIN | `DELETE /users/adminbis` | 403 |
+| `adminCannotDowngradeAdminRights` | ADMIN | `PUT /users/adminbis` | 403 |
+| `adminCanModifyRights` | ADMIN | `PUT /users/test` | 200 + role changed |
+| `cannotModifyRightsOfUnknown` | ADMIN | `PUT /users/test` (absent) | 404 |
+| `memberCannotModifyRights` | MEMBER | `PUT /users/writer` | 403 |
+| `writerCannotModifyRights` | WRITER | `PUT /users/{member,writer}` | 403 |
+
+### ContentControllerTest — authorization matrix
 
 | Test | Role | HTTP semantics asserted |
 |------|------|------------------------|
