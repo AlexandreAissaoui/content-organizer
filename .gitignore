@@ -8,3 +8,4 @@ target/
 HELP.md
 application-production.properties
 .env
+script.sh

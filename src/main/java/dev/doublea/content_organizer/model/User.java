@@ -9,6 +9,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.Size;
 
 /**
  * Audited security principal (Hibernate Envers 7.4).
@@ -39,6 +40,7 @@ public class User {
     // usernames are unique by design and are already the lookup key of the
     // whole authentication flow. Envers references this key in users_aud.
     @Id
+    @Size(min=1, max=15)
     @Column(unique = true, nullable = false)
     private String username;
 

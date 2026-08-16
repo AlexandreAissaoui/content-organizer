@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import dev.doublea.content_organizer.dto.auth.LoginRequest;
 import dev.doublea.content_organizer.dto.auth.LoginResponse;
+import dev.doublea.content_organizer.dto.auth.ModifyRequest;
 import dev.doublea.content_organizer.dto.auth.RegisterRequest;
 import dev.doublea.content_organizer.model.Role;
 import dev.doublea.content_organizer.model.User;
@@ -54,19 +55,17 @@ public class AuthController {
             return ResponseEntity.status(401).body(Map.of("error", unknown));
         }
         // If the user to delete cannot be found -> return 404
-        String present = authService.getUsers().stream()
-            .filter(user -> user.equals(username))
-            .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, unknown));
-        User userToDelete = authService.getByUsername(present).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, unknown));
+        // A direct lookup replaces the previous getUsers().stream().filter()
+        // pattern: one query instead of two round-trips.
+        User toDelete = authService.getByUsername(username)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, unknown));
         // If we try to delete an admin -> return 403 forbidden
-        if (userToDelete.getRole().equals(Role.ADMIN)) {
+        if (toDelete.getRole().equals(Role.ADMIN)) {
             return ResponseEntity.status(403).body(Map.of("error", "Not enough rights"));
         }
 
-        String callerName = authService.getUsers().stream()
-                .filter(user -> user.equals(authentication.getName()))
-                .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, unknown));
-        User caller = authService.getByUsername(callerName).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, unknown));
+        User caller = authService.getByUsername(authentication.getName())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, unknown));
         // If the caller does not have enough rights to suppress members
         if (! caller.getRole().equals(Role.ADMIN))  {
             return ResponseEntity.status(403).body(Map.of("error", "Check your rights"));
@@ -84,7 +83,7 @@ public class AuthController {
     }
 
     @PutMapping("/users/{username}")
-    public ResponseEntity<Map<String, String>> modifyRights(@PathVariable String username, @RequestBody Map<String, String> request, Authentication authentication) {
+    public ResponseEntity<Map<String, String>> modifyRights(@PathVariable String username, @Valid @RequestBody ModifyRequest request, Authentication authentication) {
         if (authentication == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Unknown user"));
         }

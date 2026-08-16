@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import dev.doublea.content_organizer.dto.auth.LoginRequest;
 import dev.doublea.content_organizer.dto.auth.LoginResponse;
+import dev.doublea.content_organizer.dto.auth.ModifyRequest;
 import dev.doublea.content_organizer.dto.auth.RegisterRequest;
 import dev.doublea.content_organizer.model.Role;
 import dev.doublea.content_organizer.model.User;
@@ -34,7 +36,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
 
     public AuthService(AuthenticationManager authenticationManager, JwtUtils jwtUtils,
-                       UserRepository userRepository, PasswordEncoder passwordEncoder) {
+                       UserRepository userRepository,
+                       PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
         this.userRepository = userRepository;
@@ -58,16 +61,28 @@ public class AuthService {
         return new LoginResponse(jwt);
     }
 
+    /**
+     * Creates a new user account with the default {@code MEMBER} role.
+     *
+     * <p>The previous implementation checked {@code findByUsername()} before
+     * saving — a concurrent request could pass the same check and both inserts
+     * would race, producing either a duplicate row or an unhandled exception.</p>
+     *
+     * <p>Relying on the database's own {@code UNIQUE} constraint and catching
+     * {@link DataIntegrityViolationException} is the only atomic path: the
+     * INSERT either succeeds or fails, and the failure is deterministic.</p>
+     */
     public void register(RegisterRequest request) {
-        if (userRepository.findByUsername(request.username()).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken");
-        }
-
         User user = new User(
                 request.username(),
                 passwordEncoder.encode(request.password())
         );
-        userRepository.save(user);
+
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken");
+        }
     }
 
 
@@ -99,22 +114,25 @@ public class AuthService {
     }
 
 
+    /**
+     * Changes a user's role. The role is validated by the {@code @NotNull}
+     * constraint on {@link ModifyRequest} — no manual check is needed.
+     *
+     * <p>{@code @Transactional} makes the loaded {@code member} entity managed:
+     * calling {@code setRole()} marks it dirty, and Hibernate flushes the
+     * UPDATE automatically at commit. No explicit {@code save()} or JPQL is
+     * required.</p>
+     */
+    @Transactional
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> modifyRights(Authentication authentication, String memberName, Map<String, String> request) {
+    public ResponseEntity<Map<String, String>> modifyRights(Authentication authentication, String memberName, ModifyRequest request) {
         String error = "error";
-        if (request.get("role") == null) {
-            return ResponseEntity.status(400).body(Map.of(error, "Role is required"));
-        }
-        String roleString = request.get("role").toUpperCase();
-        // Validation of role name
-        if ((! roleString.equals("ADMIN")) && (! roleString.equals("WRITER")) && (! roleString.equals("MEMBER")) ) {
-            return ResponseEntity.status(400).body(Map.of(error, "Unknown role : " +roleString));
-        }
-        Role newRole = Role.valueOf(roleString);
+
+        Role newRole = request.role();
 
         // Check if member exists and has adequate rights
-        Optional<User> memberOptional = userRepository.findByUsername(memberName);
-        User member = memberOptional.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Unknown user"));
+        User member = userRepository.findByUsername(memberName)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown user"));
         if ( member.getRole().equals(Role.ADMIN)) {
             return ResponseEntity.status(403).body(Map.of(error, "Administrators cannot have their rights modified"));
         } 

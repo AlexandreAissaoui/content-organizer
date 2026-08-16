@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import dev.doublea.content_organizer.model.Role;
 import dev.doublea.content_organizer.model.User;
 
 public interface UserRepository extends JpaRepository<User, String> {

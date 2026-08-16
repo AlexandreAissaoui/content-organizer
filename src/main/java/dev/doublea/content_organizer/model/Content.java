@@ -118,6 +118,6 @@ public class Content {
     public void setStatus(Status status) { this.status = status; }
     public void setType(Type type) { this.type = type; }
     public void setDateUpdated(LocalDateTime dateUpdated) { this.dateUpdated = dateUpdated; }
-    public void addSource(String url) { if ( ! sources.contains(url)) { sources.add(url); } }
-    public void addAuthor(String user) { if ( ! authors.contains(user)) { authors.add(user); } }
+    public void addSource(String url) { if ( (! sources.contains(url)) && (sources.size() < 20) ) { sources.add(url); } }
+    public void addAuthor(String user) { if ( (! authors.contains(user)) && (authors.size() < 20) ) { authors.add(user); } }
 }

@@ -160,6 +160,9 @@ Run only the audit tests:
 | `PUT`    | `/api/auth/users/{username}`| `ADMIN`   | Change a user's role                         |
 | `DELETE` | `/api/auth/users/{username}`| `ADMIN`   | Delete a user (cannot delete another `ADMIN`) |
 
+> **Validation**: `username` is `@NotBlank` (1–15 chars); `password` is `@NotBlank` + `@Size(8–32)`;
+> `role` is `@NotNull` (enum: `MEMBER`, `WRITER`, `ADMIN`). Invalid payloads return 400.
+
 ### Content CRUD
 
 | Method   | Endpoint                        | Auth                  | Description                    |
@@ -222,13 +225,14 @@ an operator. Do not create accounts from application code.
 
 ## Testing
 
-The test suite is split into three Spring Boot integration classes:
+The test suite is split into four Spring Boot integration classes:
 
 | Class | Scope | Key technique |
 |-------|-------|---------------|
 | `ContentControllerTest` | Content API authorization matrix | `@WithMockUser`, AAA pattern, `@Transactional` rollback |
-| `ContentAuditTrailTest` | Hibernate Envers audit trail | `REQUIRES_NEW` commit points, deterministic revision ids |
+| `ContentAuditTrailTest` | Hibernate Envers audit trail | `REQUIRES_NEW` commit points, `@AfterEach` cleanup, deterministic revision ids |
 | `AuthControllerTest` | Auth/user-management API authorization matrix | `@ParameterizedTest`, `@WithMockUser`, repository assertions |
+| `AuthAuditTrail` | User-management audit trail | `@AfterEach` cleanup, `REQUIRES_NEW` commit points |
 
 ### AuthControllerTest — authorization matrix
 
@@ -282,6 +286,21 @@ steps, which otherwise return 403.
 ```bash
 ./script.sh
 ```
+
+## Security hardening
+
+- **Race condition** in `register()`: check-then-save replaced by
+  `DataIntegrityViolationException` catch — the database `UNIQUE` constraint is
+  the only atomic guard.
+- **Type-safe validation**: `ModifyRequest` record with `@NotNull Role` replaces
+  the raw `Map<String, String>` body, eliminating manual role-name checks.
+- **Password constraints**: `@Size(min=8, max=32)` on `RegisterRequest` and
+  `LoginRequest` guards against oversized payloads and enforces a minimum
+  complexity floor.
+- **Content URL matchers**: trailing slash removed (`/api/contents/` →
+  `/api/contents`) and wildcard paths use `"/**"` to avoid silent mismatches.
+- **BCrypt cost factor**: explicit 11 rounds (default is 10) — one extra
+  iteration doubles hashing time without perceptible latency.
 
 ## Migration v1 → v2
 

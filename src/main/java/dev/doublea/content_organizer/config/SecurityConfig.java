@@ -36,7 +36,10 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
-    private final String contentUrl = "/api/contents/";
+    // No trailing slash — Spring MVC's PathPatternParser matches "/api/contents"
+    // but not "/api/contents/"; the old trailing slash caused DELETE/PUT/GET
+    // matchers to silently miss their targets.
+    private final String contentUrl = "/api/contents";
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService, ObjectMapper objectMapper) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
@@ -63,12 +66,13 @@ public class SecurityConfig {
             }))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/", "/api/auth/login", "/api/auth/register", "/error").permitAll()
+                .requestMatchers("/", "/api/auth/login", "/api/auth/register").permitAll()
                 .requestMatchers("/", "/api/auth/users/**").hasAnyRole("MEMBER", "WRITER", "ADMIN")
-                .requestMatchers(HttpMethod.DELETE, contentUrl+"**").hasRole("ADMIN")
+                .requestMatchers("/error", "/internal/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, contentUrl+"/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, contentUrl).hasAnyRole("WRITER","ADMIN")
-                .requestMatchers(HttpMethod.PUT, contentUrl+"**").hasAnyRole("WRITER", "ADMIN")
-                .requestMatchers(HttpMethod.GET, contentUrl+"**").hasAnyRole("MEMBER", "WRITER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, contentUrl+"/**").hasAnyRole("WRITER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, contentUrl+"/**").hasAnyRole("MEMBER", "WRITER", "ADMIN")
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())
@@ -91,6 +95,8 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        // Explicit cost factor (11 rounds): balances security and performance.
+        // Default is 10; each increment doubles the hashing time.
+        return new BCryptPasswordEncoder(11);
     }
 }

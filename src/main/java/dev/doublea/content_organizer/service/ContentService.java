@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import dev.doublea.content_organizer.dto.content.ContentRequest;
@@ -56,14 +57,9 @@ public class ContentService {
 
     @PreAuthorize("hasAnyRole('WRITER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> create(ContentRequest request, Authentication authentication) {
-        if (request == null) {
-            return ResponseEntity.status(400).body(Map.of(ERROR, "Invalid request"));
-        }
         String username = authentication.getName();
-        Optional<User> userOpt = userRepository.findByUsername(username);
-        if (userOpt.isEmpty()) {
-            return ResponseEntity.status(404).body(Map.of(ERROR, USER_NOT_FOUND));    
-        }
+        User user = userRepository.findByUsername(username)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, USER_NOT_FOUND));    
 
         Content content = new Content(request.title());
         content.addAuthor(username);        
@@ -91,19 +87,20 @@ public class ContentService {
 
 
     @PreAuthorize("hasAnyRole('WRITER', 'ADMIN')")
+    // @Transactional: the entity is loaded (findById) and mutated (setTitle,
+    // setStatus…) within the same method. Without @Transactional, each setter
+    // would trigger a separate UPDATE at method-level flush — the classic
+    // "n+1 UPDATE" anti-pattern. With it, Hibernate writes a single, merged
+    // UPDATE at commit.
+    @Transactional
     public ResponseEntity<Map<String, String>> update(Integer id, ContentUpdateRequest request, Authentication authentication) {
-        if (request == null) {
-            return ResponseEntity.status(400).body(Map.of(ERROR, "Invalid request"));
-        }
-        Optional<Content> checkContent = repository.findById(id);
-        Content content = checkContent.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, CONTENT_NOT_FOUND));
+        Content content = repository.findById(id)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, CONTENT_NOT_FOUND));
         
-        Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
-        if (userOpt.isEmpty()) {
-            return ResponseEntity.status(404).body(Map.of(ERROR,USER_NOT_FOUND));    
-        }
+        User user = userRepository.findByUsername(authentication.getName())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, USER_NOT_FOUND) );
         // Only an admin or a writer of the shared content can update it
-        if ((! userOpt.get().getRole().equals(Role.ADMIN) ) && (! content.getAuthors().contains(authentication.getName())) ) {
+        if ((! user.getRole().equals(Role.ADMIN) ) && (! content.getAuthors().contains(authentication.getName())) ) {
             return ResponseEntity.status(403).body(Map.of(ERROR, "Not enough rights to update content"));
         }
         if (request.title() != null && !request.title().trim().isBlank()) {
@@ -178,7 +175,7 @@ public class ContentService {
                     content.getAuthors()
             );
         }
-        return null;
+        return new ContentResponse(-1, ERROR, CONTENT_NOT_FOUND, Status.EMPTY, null, null, null, null, null);
     }
 
     public List<ContentResponse> findBySources(List<String> sources) {

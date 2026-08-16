@@ -85,5 +85,9 @@ public class AuditRevisionEntity {
 
     public String getUsername() { return username; }
 
+
+    // Here for test purposes ONLY
+    public void setTimeStamp(long timestamp) { this.timestamp = timestamp; }
+
     public void setUsername(String username) { if (this.username == null) { this.username = username; } }
 }

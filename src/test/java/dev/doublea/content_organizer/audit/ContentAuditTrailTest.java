@@ -7,7 +7,7 @@ import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.AuditReaderFactory;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.query.AuditEntity;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -74,9 +74,11 @@ class ContentAuditTrailTest {
         "DELETE FROM content_authors_aud",
         "DELETE FROM content_sources_aud",
         "DELETE FROM content_aud",
+        "DELETE FROM users_aud",
         "DELETE FROM content_authors",
         "DELETE FROM content_sources",
         "DELETE FROM content",
+        "DELETE FROM users",
         "DELETE FROM audit_revision_entity",
         "ALTER SEQUENCE audit_revision_entity_seq RESTART WITH 1"
     );
@@ -105,10 +107,9 @@ class ContentAuditTrailTest {
      * The next test's {@code @BeforeEach} removes the committed leftovers 
      * of the previous one.
      */
-    @BeforeEach
-    void cleanBefore() { cleanDatabase(); }
-
-    private void cleanDatabase() {
+    
+    @AfterEach
+    void cleanBefore() { 
         // Native DML must execute inside a transaction: run the statements in
         // a committed (REQUIRES_NEW) block so the cleanup is effective.
         requiresNew.execute(status -> {
@@ -228,6 +229,21 @@ class ContentAuditTrailTest {
 
         Number revisionNumber = auditReader().getRevisions(Content.class, content.getId()).get(0);
         // findRevision() materializes the global revision row (audit_revision_entity).
+        AuditRevisionEntity revision = auditReader().findRevision(AuditRevisionEntity.class, revisionNumber);
+        assertThat(revisionNumber).isEqualTo(1); // deterministic thanks to the sequence reset
+        // The listener must have captured the mocked principal running this thread.
+        assertThat(revision.getUsername()).isEqualTo("admin");
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = "ADMIN")
+    void revisionIsNotModifiable() {
+        Content content = savedContent(); // committed ADD, author resolved at commit
+
+
+        Number revisionNumber = auditReader().getRevisions(Content.class, content.getId()).get(0);
+        // findRevision() materializes the global revision row (audit_revision_entity).
+        //auditReader().createQuery().forEntitiesAtRevision(Content.class, revisionNumber).
         AuditRevisionEntity revision = auditReader().findRevision(AuditRevisionEntity.class, revisionNumber);
         assertThat(revisionNumber).isEqualTo(1); // deterministic thanks to the sequence reset
         // The listener must have captured the mocked principal running this thread.
